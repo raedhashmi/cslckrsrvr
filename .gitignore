@@ -1,0 +1,6 @@
+.venv
+screen_recordings/*.mp4
+templates/cslckrwbcl updater.exe
+templates/cslckrwbcl.exe
+
+tester.py
