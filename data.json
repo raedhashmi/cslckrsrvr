@@ -1,8 +1,9 @@
 {
   "infected_devices": {
     "XYZ": {
-      "state": "unverified",
-      "owner": "raedh"
+      "state": "verified",
+      "owner": "raedh",
+      "authcode": "123"
     }
   },
   "messages": {},
