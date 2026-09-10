@@ -1,0 +1,10 @@
+{
+  "infected_devices": {
+    "XYZ": {
+      "state": "unverified",
+      "owner": "raedh"
+    }
+  },
+  "messages": {},
+  "responses": {}
+}
