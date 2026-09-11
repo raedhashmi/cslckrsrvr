@@ -1,11 +1,13 @@
 {
-  "infected_devices": {
-    "XYZ": {
-      "state": "verified",
-      "owner": "raedh",
-      "authcode": "123"
-    }
-  },
+  "infected_devices": {},
   "messages": {},
-  "responses": {}
+  "responses": {},
+  "users": [
+    {
+      "name": "raedh",
+      "uuid": "ea9229bb-5942-446c-a6c4-06069fce79e9",
+      "password": "$2b$12$cUnisoQUSZ/27Y25E4JeWOS8.FDBiFvrAalhAq7.Xztb9fleQSZ2y"
+    }
+  ],
+  "sessions": []
 }
